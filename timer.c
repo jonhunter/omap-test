@@ -136,6 +136,47 @@ static int omap_timer_interrupt_test(struct omap_dm_timer *gptimer)
 	return r;
 }
 
+static int omap_timer_match_test(struct omap_dm_timer *gptimer)
+{
+	u32 count;
+	int r, timer_irq, timeout;
+
+	timer_irq = omap_dm_timer_get_irq(gptimer);
+
+	if (request_irq(timer_irq, omap_timer_interrupt,
+			IRQF_TRIGGER_HIGH, "timer-test", &irq_data) < 0) {
+		pr_err("Failed to allocate timer interrupt (%d)\n", timer_irq);
+		return -ENODEV;
+	}
+
+	irq_data.gptimer = gptimer;
+	init_completion(&irq_data.complete);
+	omap_dm_timer_set_int_enable(gptimer, OMAP_TIMER_INT_MATCH);
+	omap_dm_timer_set_match(gptimer, 1, 0x12346678);
+	omap_dm_timer_set_load_start(gptimer, 0, 0x12345678);
+
+	timeout = wait_for_completion_timeout(&irq_data.complete, TIMER_TIMEOUT);
+
+	count =	omap_dm_timer_read_counter(gptimer);
+
+	if (timeout == 0) {
+		pr_err("Timer match test FAILED! No interrupt occurred in 1 sec (count 0x%x)\n", count);
+		r = -ETIMEDOUT;
+	} else if (count < 0x12346678) {
+		pr_err("Timer match test FAILED! Count (0x%x) invalid!\n", count);
+		r = -ERANGE;
+	} else {
+		pr_info("Timer match test PASSED!\n");
+		r = 0;
+	}
+
+	omap_dm_timer_stop(gptimer);
+	omap_dm_timer_set_int_enable(gptimer, 0);
+	free_irq(timer_irq, &irq_data);
+
+	return r;
+}
+
 static u32 omap_timer_num_timers(void)
 {
 	u32 max_num_timers = 0;
@@ -190,6 +231,8 @@ static int omap_timer_run_tests(struct omap_dm_timer *gptimer)
 		if (omap_timer_read_test(gptimer, 10, 100))
 			r++;
 		if (omap_timer_interrupt_test(gptimer))
+			r++;
+		if (omap_timer_match_test(gptimer))
 			r++;
 	}
 
