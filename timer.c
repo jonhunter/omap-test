@@ -26,6 +26,7 @@ struct timer_irq_data {
 
 static u32 omap_test_all;
 static u32 omap_test_one;
+static u32 omap_test_request;
 static u32 omap_test_stress;
 static int omap_timer_stress;
 static int omap_timer_test_stop;
@@ -164,10 +165,7 @@ static struct omap_dm_timer *omap_timer_request_one(u32 timer_id)
 	else
 		gptimer = omap_dm_timer_request();
 
-	if (gptimer)
-		return gptimer;
-
-	return NULL;
+	return gptimer;
 }
 
 static int omap_timer_run_tests(struct omap_dm_timer *gptimer)
@@ -248,6 +246,112 @@ static int omap_timer_test_all(void)
 	return errors;
 }
 
+static int omap_timer_test_request_by_cap(u32 cap, u32 num)
+{
+	struct omap_dm_timer *gptimers[OMAP_MAX_NUM_TIMERS];
+	int i, count;
+
+	for (i = 0, count = 0; i < num; i++) {
+		gptimers[count] = omap_dm_timer_request_by_cap(cap);
+		if (gptimers[count])
+			count++;
+	}
+
+	for (i = 0; i < count; i++)
+		omap_dm_timer_free(gptimers[i]);
+
+	/*
+	 * Return 0 if count matches number
+	 * requested, otherwise return 1.
+	 */
+	return ((count == num) ? 0 : 1);
+}
+
+static void omap_timer_test_request(void)
+{
+	struct omap_dm_timer *gptimers[OMAP_MAX_NUM_TIMERS];
+	int i, of_dt_present, num_timers, max_timers, num_secure;
+	int num_alwon, num_pwm, num_dsp, count, total_err, err;
+
+	max_timers = omap_timer_num_timers();
+
+	/*
+	 * Calculate total number of available timers. Note total available
+	 * may be less than the device has if timers are already in-use.
+	 */
+	for (i = 0, count = 0; i < max_timers; i++) {
+		gptimers[count] = omap_timer_request_one(0);
+		if (gptimers[count])
+			count++;
+	}
+
+	total_err = 0;
+	num_timers = count;
+	num_alwon = 0;
+	num_dsp = 0;
+	num_pwm = 0;
+	num_secure = 0;
+	of_dt_present = 0;
+
+	if (count && gptimers[0]->pdev->dev.of_node)
+		of_dt_present = 1;
+
+	for (i = 0; i < count; i++) {
+		if (gptimers[i]->capability & OMAP_TIMER_SECURE)
+			num_secure++;
+		if (gptimers[i]->capability & OMAP_TIMER_ALWON)
+			num_alwon++;
+		if (gptimers[i]->capability & OMAP_TIMER_HAS_PWM)
+			num_pwm++;
+		if (gptimers[i]->capability & OMAP_TIMER_HAS_DSP_IRQ)
+			num_dsp++;
+		omap_dm_timer_free(gptimers[i]);
+	}
+
+	err = omap_timer_test_request_by_cap(OMAP_TIMER_SECURE, num_secure);
+	pr_info("Timer secure request test %s: available %d, allocated %d\n",
+		err ? "FAILED" : "PASSED", num_secure, count);
+	total_err += err;
+
+	err = omap_timer_test_request_by_cap(OMAP_TIMER_ALWON, num_alwon);
+	pr_info("Timer always-on request test %s: available %d, allocated %d\n",
+		err ? "FAILED" : "PASSED", num_alwon, count);
+	total_err += err;
+
+	err = omap_timer_test_request_by_cap(OMAP_TIMER_HAS_PWM, num_pwm);
+	pr_info("Timer pwm request test %s: available %d, allocated %d\n",
+		err ? "FAILED" : "PASSED", num_pwm, count);
+	total_err += err;
+
+	err = omap_timer_test_request_by_cap(OMAP_TIMER_HAS_DSP_IRQ, num_dsp);
+	pr_info("Timer dsp request test %s: available %d, allocated %d\n",
+		err ? "FAILED" : "PASSED", num_dsp, count);
+	total_err += err;
+
+	/*
+	 * If device-tree is present, then requesting timers by ID is
+	 * not supported and so skip this test.
+	 */
+	if (of_dt_present)
+		goto out;
+
+	for (i = 1, count = 0; i <= max_timers; i++) {
+		gptimers[0] = omap_timer_request_one(i);
+		if (gptimers[0]) {
+			omap_dm_timer_free(gptimers[0]);
+			count++;
+		}
+	}
+
+	err = (count == num_timers) ? 0 : 1;
+	pr_info("Timer ID request test %s: available %d, allocated %d\n",
+		err ? "FAILED" : "PASSED", num_timers, count);
+	total_err += err;
+
+out:
+	pr_info("Timer request test summary: Errors %d\n", total_err);
+}
+
 static void omap_timer_work_fn(struct work_struct *work)
 {
 	u32 err, count = 0;
@@ -266,7 +370,7 @@ static void omap_timer_work_fn(struct work_struct *work)
 
 	} while (!err && omap_timer_stress);
 
-	pr_info("Test summary: Iterations %d, Errors %d\n", count, err);
+	pr_info("Timer test summary: Iterations %d, Errors %d\n", count, err);
 
 	omap_timer_test_running = 0;
 }
@@ -318,6 +422,13 @@ static int option_set(void *data, u64 v)
 		return 0;
 	}
 
+	if ((option == &omap_test_request) && (!omap_timer_test_running)) {
+		omap_timer_test_running = 1;
+		omap_timer_test_request();
+		omap_timer_test_running = 0;
+		return 0;
+	}
+
 	return -EINVAL;
 }
 
@@ -332,6 +443,8 @@ int omap_test_timer_init(struct dentry *d)
 		&omap_test_all, &omap_test_option_fops);
 	(void) debugfs_create_file("one", S_IRUGO | S_IWUSR, d,
 		&omap_test_one, &omap_test_option_fops);
+	(void) debugfs_create_file("request", S_IRUGO | S_IWUSR, d,
+		&omap_test_request, &omap_test_option_fops);
 	(void) debugfs_create_file("stress", S_IRUGO | S_IWUSR, d,
 		&omap_test_stress, &omap_test_option_fops);
 
