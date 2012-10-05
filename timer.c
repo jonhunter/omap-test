@@ -92,12 +92,14 @@ static irqreturn_t omap_timer_interrupt(int irq, void *dev_id)
 	u32 l;
 
 	l = omap_dm_timer_read_status(d->gptimer);
-	omap_dm_timer_write_status(d->gptimer, l);
 
-	if (!l)
+	if (!l) {
 		pr_err("ERROR: Timer interrupt but no interrupts pending!\n");
-
-	complete(&d->complete);
+		omap_dm_timer_set_int_disable(d->gptimer, 0x7);
+	} else {
+		omap_dm_timer_write_status(d->gptimer, l);
+		complete(&d->complete);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -129,8 +131,8 @@ static int omap_timer_interrupt_test(struct omap_dm_timer *gptimer)
 		r = 0;
 	}
 
+	omap_dm_timer_set_int_disable(gptimer, 0x7);
 	omap_dm_timer_stop(gptimer);
-	omap_dm_timer_set_int_enable(gptimer, 0);
 	free_irq(timer_irq, &irq_data);
 
 	return r;
@@ -170,8 +172,8 @@ static int omap_timer_match_test(struct omap_dm_timer *gptimer)
 		r = 0;
 	}
 
+	omap_dm_timer_set_int_disable(gptimer, 0x7);
 	omap_dm_timer_stop(gptimer);
-	omap_dm_timer_set_int_enable(gptimer, 0);
 	free_irq(timer_irq, &irq_data);
 
 	return r;
