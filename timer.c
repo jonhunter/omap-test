@@ -8,7 +8,7 @@
 #include <linux/debugfs.h>
 #include <linux/clk.h>
 #include <linux/ktime.h>
-#include <plat/cpu.h>
+#include <mach/../../soc.h>
 #include <plat/dmtimer.h>
 
 #define OMAP1_NUM_TIMERS	8
@@ -137,11 +137,13 @@ static int omap_timer_interrupt_test(struct omap_dm_timer *gptimer)
 
 static u32 omap_timer_num_timers(void)
 {
-	u32 max_num_timers;
+	u32 max_num_timers = 0;
 
+#ifdef CONFIG_ARCH_OMAP1
 	if (cpu_class_is_omap1())
 		max_num_timers = OMAP1_NUM_TIMERS;
-	else if (cpu_is_omap34xx() && (omap_type() != OMAP2_DEVICE_TYPE_GP))
+#else
+	if (cpu_is_omap34xx() && (omap_type() != OMAP2_DEVICE_TYPE_GP))
 		max_num_timers = OMAP2_NUM_TIMERS - 1;
 	else if (cpu_is_omap24xx() || cpu_is_omap34xx())
 		max_num_timers = OMAP2_NUM_TIMERS;
@@ -149,7 +151,7 @@ static u32 omap_timer_num_timers(void)
 		max_num_timers = AM335X_NUM_TIMERS;
 	else
 		max_num_timers = OMAP4_NUM_TIMERS;
-
+#endif
 	return max_num_timers;
 }
 
