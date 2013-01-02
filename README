@@ -1,0 +1,34 @@
+OMAP-TEST README
+----------------
+
+
+Build Instructions:
+------------------
+
+1. Ensure that the debug-filesystem is enable in your kernel configuration
+   (CONFIG_DEBUG_FS=y)
+2. Execute the command "KERNEL_PATH=<path-to-kernel> make"
+
+
+How to use:
+----------
+
+Ensure the debug-filesystem is mounted by executing "mount | grep debugfs".
+Default location is /sys/kernel/debug.
+
+
+Timer Test Description		Command
+----------------------		-------
+Test timer request APIs.	"echo 1 > /sys/kernel/debug/omap-test/timer/request"
+Tests a timer (verifies	counter	"echo <timer-number> > /sys/kernel/debug/omap-test/timer/one"
+increments, as well as overflow
+and match interrupts).
+Tests all timers (verifies	"echo 1 > /sys/kernel/debug/omap-test/timer/all"
+counters increment, as well as
+overflow and match interrupts).
+Repeatedly tests all timers	"echo 1 > /sys/kernel/debug/omap-test/timer/stress"
+(verifies counters increment,
+as well as overflow and match
+interrupts). To stop test
+"echo 0" to same file.
+
