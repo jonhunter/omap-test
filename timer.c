@@ -199,18 +199,6 @@ static u32 omap_timer_num_timers(void)
 	return max_num_timers;
 }
 
-static struct omap_dm_timer *omap_timer_request_one(u32 timer_id)
-{
-	struct omap_dm_timer *gptimer;
-
-	if (timer_id)
-		gptimer = omap_dm_timer_request_specific(timer_id);
-	else
-		gptimer = omap_dm_timer_request();
-
-	return gptimer;
-}
-
 static int omap_timer_run_tests(struct omap_dm_timer *gptimer)
 {
 	int i, r;
@@ -245,7 +233,7 @@ static void omap_timer_test_one(u32 timer_id)
 {
 	struct omap_dm_timer *gptimer;
 
-	gptimer = omap_timer_request_one(timer_id);
+	gptimer = omap_dm_timer_request_specific(timer_id);
 
 	if (gptimer) {
 		omap_timer_run_tests(gptimer);
@@ -269,7 +257,7 @@ static int omap_timer_test_all(void)
 	num_timers = omap_timer_num_timers();
 
 	for (i = 0; i < num_timers; i++) {
-		gptimers[count] = omap_timer_request_one(0);
+		gptimers[count] = omap_dm_timer_request();
 		if (gptimers[count])
 			count++;
 	}
@@ -325,7 +313,7 @@ static void omap_timer_test_request(void)
 	 * may be less than the device has if timers are already in-use.
 	 */
 	for (i = 0, count = 0; i < max_timers; i++) {
-		gptimers[count] = omap_timer_request_one(0);
+		gptimers[count] = omap_dm_timer_request();
 		if (gptimers[count])
 			count++;
 	}
@@ -381,7 +369,7 @@ static void omap_timer_test_request(void)
 		goto out;
 
 	for (i = 1, count = 0; i <= max_timers; i++) {
-		gptimers[0] = omap_timer_request_one(i);
+		gptimers[0] = omap_dm_timer_request_specific(i);
 		if (gptimers[0]) {
 			omap_dm_timer_free(gptimers[0]);
 			count++;
