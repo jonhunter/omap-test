@@ -8,6 +8,7 @@
 #include <linux/debugfs.h>
 #include <linux/clk.h>
 #include <linux/ktime.h>
+#include <linux/of.h>
 #include <mach/../../soc.h>
 #include <plat/dmtimer.h>
 
@@ -319,6 +320,38 @@ static int omap_timer_test_request_by_cap(u32 cap, u32 num)
 	return err;
 }
 
+#ifdef CONFIG_OF
+static int omap_timer_test_request_by_node(u32 num)
+{
+	struct omap_dm_timer *gptimers[OMAP_MAX_NUM_TIMERS];
+	struct device_node *np;
+	int i, count = 0;
+
+	for_each_node_by_name(np, "timer") {
+		gptimers[count] = omap_dm_timer_request_by_node(np);
+		if (gptimers[count])
+			count++;
+	}
+
+	for (i = 0; i < count; i++)
+		omap_dm_timer_free(gptimers[i]);
+
+	pr_info("Timer node request test %s: available %d, allocated %d\n",
+		(count != num) ? "FAILED" : "PASSED", num, count);
+
+	/*
+	 * Return 0 if count matches number
+	 * requested, otherwise return 1.
+	 */
+	return ((count == num) ? 0 : 1);
+}
+#else
+static int omap_timer_test_request_by_node(u32 num)
+{
+	return 0;
+}
+#endif
+
 static void omap_timer_test_request(void)
 {
 	struct omap_dm_timer *gptimers[OMAP_MAX_NUM_TIMERS];
@@ -367,10 +400,13 @@ static void omap_timer_test_request(void)
 
 	/*
 	 * If device-tree is present, then requesting timers by ID is
-	 * not supported and so skip this test.
+	 * not supported and so skip this test. However, requesting
+	 * timers by node is supported with device tree and so test this.
 	 */
-	if (of_dt_present)
+	if (of_dt_present) {
+		err += omap_timer_test_request_by_node(num_timers);
 		goto out;
+	}
 
 	for (i = 1, count = 0; i <= max_timers; i++) {
 		gptimers[0] = omap_dm_timer_request_specific(i);
