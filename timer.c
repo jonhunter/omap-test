@@ -118,14 +118,6 @@ static int omap_timer_interrupt_test(struct omap_dm_timer *gptimer)
 
 	irq_data.gptimer = gptimer;
 	init_completion(&irq_data.complete);
-
-	/*
-	 * FIXME: Workaround for missing context
-	 * loss check when booting with DT.
-	 */
-	if (gptimer->pdev->dev.of_node)
-		omap_dm_timer_enable(gptimer);
-
 	omap_dm_timer_set_int_enable(gptimer, OMAP_TIMER_INT_OVERFLOW);
 	omap_dm_timer_set_load_start(gptimer, 0, 0xffffff00);
 
@@ -141,14 +133,6 @@ static int omap_timer_interrupt_test(struct omap_dm_timer *gptimer)
 
 	omap_dm_timer_set_int_disable(gptimer, 0x7);
 	omap_dm_timer_stop(gptimer);
-
-	/*
-	 * FIXME: Workaround for missing context
-	 * loss check when booting with DT.
-	 */
-	if (gptimer->pdev->dev.of_node)
-		omap_dm_timer_disable(gptimer);
-
 	free_irq(timer_irq, &irq_data);
 
 	return r;
@@ -169,14 +153,6 @@ static int omap_timer_match_test(struct omap_dm_timer *gptimer)
 
 	irq_data.gptimer = gptimer;
 	init_completion(&irq_data.complete);
-
-	/*
-	 * FIXME: Workaround for missing context
-	 * loss check when booting with DT.
-	 */
-	if (gptimer->pdev->dev.of_node)
-		omap_dm_timer_enable(gptimer);
-
 	omap_dm_timer_set_int_enable(gptimer, OMAP_TIMER_INT_MATCH);
 	omap_dm_timer_set_match(gptimer, 1, 0x12346678);
 	omap_dm_timer_set_load_start(gptimer, 0, 0x12345678);
@@ -198,14 +174,6 @@ static int omap_timer_match_test(struct omap_dm_timer *gptimer)
 
 	omap_dm_timer_set_int_disable(gptimer, 0x7);
 	omap_dm_timer_stop(gptimer);
-
-	/*
-	 * FIXME: Workaround for missing context
-	 * loss check when booting with DT.
-	 */
-	if (gptimer->pdev->dev.of_node)
-		omap_dm_timer_disable(gptimer);
-
 	free_irq(timer_irq, &irq_data);
 
 	return r;
