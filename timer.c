@@ -314,7 +314,8 @@ static int omap_timer_test_all(void)
 static int omap_timer_test_request_by_cap(u32 cap, u32 num)
 {
 	struct omap_dm_timer *gptimers[OMAP_MAX_NUM_TIMERS];
-	int i, count;
+	int i, count, err;
+	char *s;
 
 	for (i = 0, count = 0; i < num; i++) {
 		gptimers[count] = omap_dm_timer_request_by_cap(cap);
@@ -325,18 +326,36 @@ static int omap_timer_test_request_by_cap(u32 cap, u32 num)
 	for (i = 0; i < count; i++)
 		omap_dm_timer_free(gptimers[i]);
 
-	/*
-	 * Return 0 if count matches number
-	 * requested, otherwise return 1.
-	 */
-	return ((count == num) ? 0 : 1);
+	err = (count == num) ? 0 : 1;
+
+	switch (cap) {
+	case OMAP_TIMER_SECURE:
+		s = "secure";
+		break;
+	case OMAP_TIMER_ALWON:
+		s = "always-on";
+		break;
+	case OMAP_TIMER_HAS_PWM:
+		s = "pwm";
+		break;
+	case OMAP_TIMER_HAS_DSP_IRQ:
+		s = "dsp";
+		break;
+	default:
+		s = "unknown";
+	}
+
+	pr_info("Timer %s request test %s: available %d, allocated %d\n",
+		s, err ? "FAILED" : "PASSED", num, count);
+
+	return err;
 }
 
 static void omap_timer_test_request(void)
 {
 	struct omap_dm_timer *gptimers[OMAP_MAX_NUM_TIMERS];
 	int i, of_dt_present, num_timers, max_timers, num_secure;
-	int num_alwon, num_pwm, num_dsp, count, total_err, err;
+	int num_alwon, num_pwm, num_dsp, count, err;
 
 	max_timers = omap_timer_num_timers();
 
@@ -350,7 +369,7 @@ static void omap_timer_test_request(void)
 			count++;
 	}
 
-	total_err = 0;
+	err = 0;
 	num_timers = count;
 	num_alwon = 0;
 	num_dsp = 0;
@@ -373,25 +392,10 @@ static void omap_timer_test_request(void)
 		omap_dm_timer_free(gptimers[i]);
 	}
 
-	err = omap_timer_test_request_by_cap(OMAP_TIMER_SECURE, num_secure);
-	pr_info("Timer secure request test %s: available %d, allocated %d\n",
-		err ? "FAILED" : "PASSED", num_secure, count);
-	total_err += err;
-
-	err = omap_timer_test_request_by_cap(OMAP_TIMER_ALWON, num_alwon);
-	pr_info("Timer always-on request test %s: available %d, allocated %d\n",
-		err ? "FAILED" : "PASSED", num_alwon, count);
-	total_err += err;
-
-	err = omap_timer_test_request_by_cap(OMAP_TIMER_HAS_PWM, num_pwm);
-	pr_info("Timer pwm request test %s: available %d, allocated %d\n",
-		err ? "FAILED" : "PASSED", num_pwm, count);
-	total_err += err;
-
-	err = omap_timer_test_request_by_cap(OMAP_TIMER_HAS_DSP_IRQ, num_dsp);
-	pr_info("Timer dsp request test %s: available %d, allocated %d\n",
-		err ? "FAILED" : "PASSED", num_dsp, count);
-	total_err += err;
+	err += omap_timer_test_request_by_cap(OMAP_TIMER_SECURE, num_secure);
+	err += omap_timer_test_request_by_cap(OMAP_TIMER_ALWON, num_alwon);
+	err += omap_timer_test_request_by_cap(OMAP_TIMER_HAS_PWM, num_pwm);
+	err += omap_timer_test_request_by_cap(OMAP_TIMER_HAS_DSP_IRQ, num_dsp);
 
 	/*
 	 * If device-tree is present, then requesting timers by ID is
@@ -408,13 +412,12 @@ static void omap_timer_test_request(void)
 		}
 	}
 
-	err = (count == num_timers) ? 0 : 1;
+	err += (count == num_timers) ? 0 : 1;
 	pr_info("Timer ID request test %s: available %d, allocated %d\n",
-		err ? "FAILED" : "PASSED", num_timers, count);
-	total_err += err;
+		(count != num_timers) ? "FAILED" : "PASSED", num_timers, count);
 
 out:
-	pr_info("Timer request test summary: Errors %d\n", total_err);
+	pr_info("Timer request test summary: Errors %d\n", err);
 }
 
 static void omap_timer_work_fn(struct work_struct *work)
